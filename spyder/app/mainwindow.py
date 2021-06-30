@@ -69,7 +69,7 @@ from qtawesome.iconic_font import FontError
 #==============================================================================
 from spyder import __version__
 from spyder import dependencies
-from spyder.app.utils import (create_splash_screen, delete_lsp_log_files,
+from spyder.app.utils import (create_splash_screen, delete_debug_log_files,
                               qt_message_handler, set_links_color,
                               setup_logging, set_opengl_implementation, Spy)
 from spyder.api.plugin_registration.registry import PLUGIN_REGISTRY
@@ -1064,11 +1064,13 @@ class MainWindow(QMainWindow):
             section=ToolsMenuSections.Tools,
             before=winenv_action
         )
-        if get_debug_level() >= 3:
-            self.menu_lsp_logs = QMenu(_("LSP logs"))
-            self.menu_lsp_logs.aboutToShow.connect(self.update_lsp_logs)
+
+        # Debug logs
+        if get_debug_level() >= 2:
+            self.menu_debug_logs = QMenu(_("Debug logs"))
+            self.menu_debug_logs.aboutToShow.connect(self.update_debug_logs)
             mainmenu.add_item_to_application_menu(
-                self.menu_lsp_logs,
+                self.menu_debug_logs,
                 menu_id=ApplicationMenus.Tools)
 
         # Main toolbar
@@ -1112,16 +1114,17 @@ class MainWindow(QMainWindow):
             pass
         return super().__getattr__(attr)
 
-    def update_lsp_logs(self):
-        """Create an action for each lsp log file."""
-        self.menu_lsp_logs.clear()
-        lsp_logs = []
+    def update_debug_logs(self):
+        """Create an action for each lsp and debug log file."""
+        self.menu_debug_logs.clear()
+        debug_logs = []
         files = glob.glob(osp.join(get_conf_path('lsp_logs'), '*.log'))
+        files.append(os.environ['SPYDER_DEBUG_FILE'])
         for f in files:
             action = create_action(self, f, triggered=self.editor.load)
             action.setData(f)
-            lsp_logs.append(action)
-        add_actions(self.menu_lsp_logs, lsp_logs)
+            debug_logs.append(action)
+        add_actions(self.menu_debug_logs, debug_logs)
 
     def pre_visible_setup(self):
         """
@@ -1196,9 +1199,6 @@ class MainWindow(QMainWindow):
                 pass
 
         self.restore_scrollbar_position.emit()
-
-        logger.info('Deleting previous Spyder instance LSP logs...')
-        delete_lsp_log_files()
 
         # Workaround for spyder-ide/spyder#880.
         # QDockWidget objects are not painted if restored as floating
@@ -2155,6 +2155,8 @@ def main(options, args):
                                       CONF.get('main', 'high_dpi_scaling'))
 
     # **** Set debugging info ****
+    if get_debug_level() > 0:
+        delete_debug_log_files()
     setup_logging(options)
 
     # **** Create the application ****
